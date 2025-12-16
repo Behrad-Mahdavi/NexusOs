@@ -12,7 +12,7 @@ interface DockProps {
 
 const Dock: React.FC<DockProps> = ({ currentView, setView, lang }) => {
   const t = getTranslation(lang);
-  
+
   const items = [
     { id: AppView.DASHBOARD, icon: LayoutGrid, label: t.home },
     { id: AppView.UNIVERSITY, icon: GraduationCap, label: t.university },
@@ -24,8 +24,8 @@ const Dock: React.FC<DockProps> = ({ currentView, setView, lang }) => {
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 rtl:translate-x-1/2 rtl:left-auto rtl:right-1/2">
-      <motion.div 
-        className="flex items-center gap-4 px-6 py-4 bg-white/20 backdrop-blur-2xl border border-white/20 rounded-full shadow-2xl"
+      <motion.div
+        className="flex items-center gap-2 md:gap-4 px-4 py-3 md:px-6 md:py-4 bg-white/20 backdrop-blur-2xl border border-white/20 rounded-full shadow-2xl scale-90 md:scale-100 origin-bottom"
         initial={{ y: 100 }}
         animate={{ y: 0 }}
         transition={{ type: "spring", stiffness: 200, damping: 20 }}
@@ -40,9 +40,8 @@ const Dock: React.FC<DockProps> = ({ currentView, setView, lang }) => {
               title={item.label}
             >
               <motion.div
-                className={`p-3 rounded-2xl transition-all duration-300 ${
-                  isActive ? 'bg-white/30 text-white' : 'text-white/60 hover:text-white hover:bg-white/10'
-                }`}
+                className={`p-3 rounded-2xl transition-all duration-300 ${isActive ? 'bg-white/30 text-white' : 'text-white/60 hover:text-white hover:bg-white/10'
+                  }`}
                 whileHover={{ scale: 1.1 }}
                 whileTap={{ scale: 0.95 }}
               >

@@ -17,9 +17,9 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, courses, assignments }) => {
   const t = getTranslation(lang);
-  
+
   const today = new Date();
-  const dateString = lang === 'fa' 
+  const dateString = lang === 'fa'
     ? new Intl.DateTimeFormat('fa-IR', { weekday: 'long', month: 'long', day: 'numeric' }).format(today)
     : today.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
@@ -31,7 +31,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
       .filter(task => task.status !== 'done')
       .slice(0, 3);
   }, [tasks]);
-  
+
   // 2. Primary Focus: First 'doing' task or first 'todo'
   const primaryFocus = useMemo(() => {
     return tasks.find(t => t.status === 'doing') || tasks.find(t => t.status === 'todo');
@@ -39,97 +39,97 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
 
   // 3. Energy / Progress Calculation
   const progressStats = useMemo(() => {
-      const totalEnergy = tasks.reduce((acc, curr) => acc + curr.energyCost, 0);
-      const completedEnergy = tasks.filter(t => t.status === 'done').reduce((acc, curr) => acc + curr.energyCost, 0);
-      
-      const percentage = totalEnergy === 0 ? 0 : Math.round((completedEnergy / totalEnergy) * 100);
-      return { percentage, completedEnergy, totalEnergy };
+    const totalEnergy = tasks.reduce((acc, curr) => acc + curr.energyCost, 0);
+    const completedEnergy = tasks.filter(t => t.status === 'done').reduce((acc, curr) => acc + curr.energyCost, 0);
+
+    const percentage = totalEnergy === 0 ? 0 : Math.round((completedEnergy / totalEnergy) * 100);
+    return { percentage, completedEnergy, totalEnergy };
   }, [tasks]);
 
   // 4. Smart Income Logic
   // Uses explicit revenue field, falls back to energy estimation if 0 for older data
   const incomeStats = useMemo(() => {
-      // Setup current week structure (Start from Saturday for Persian, Monday for English/Global)
-      const now = new Date();
-      // Simple approach: Get last 7 days including today for the chart
-      const chartDays = Array(7).fill(0).map((_, i) => {
-          const d = new Date();
-          d.setDate(now.getDate() - (6 - i)); // 6 days ago to today
-          d.setHours(0,0,0,0);
-          return d;
-      });
+    // Setup current week structure (Start from Saturday for Persian, Monday for English/Global)
+    const now = new Date();
+    // Simple approach: Get last 7 days including today for the chart
+    const chartDays = Array(7).fill(0).map((_, i) => {
+      const d = new Date();
+      d.setDate(now.getDate() - (6 - i)); // 6 days ago to today
+      d.setHours(0, 0, 0, 0);
+      return d;
+    });
 
-      const chartData = chartDays.map(date => {
-         return {
-             name: date.toLocaleDateString(lang === 'en' ? 'en-US' : 'fa-IR', { weekday: 'narrow' }),
-             dateStr: date.toDateString(),
-             value: 0
-         };
-      });
+    const chartData = chartDays.map(date => {
+      return {
+        name: date.toLocaleDateString(lang === 'en' ? 'en-US' : 'fa-IR', { weekday: 'narrow' }),
+        dateStr: date.toDateString(),
+        value: 0
+      };
+    });
 
-      let totalEarned = 0;
-      let potentialIncome = 0;
+    let totalEarned = 0;
+    let potentialIncome = 0;
 
-      tasks.filter(t => t.context === 'freelance').forEach(task => {
-          // If revenue is set, use it. Otherwise 0.
-          // Note: Previously we estimated with energy * 150. I removed that to force manual input for accuracy, 
-          // or you can fallback: (task.revenue || task.energyCost * 150)
-          const value = task.revenue || 0; 
+    tasks.filter(t => t.context === 'freelance').forEach(task => {
+      // If revenue is set, use it. Otherwise 0.
+      // Note: Previously we estimated with energy * 150. I removed that to force manual input for accuracy, 
+      // or you can fallback: (task.revenue || task.energyCost * 150)
+      const value = task.revenue || 0;
 
-          if (task.status === 'done') {
-              totalEarned += value;
-              // Add to chart if within range
-              if (task.completedAt) {
-                  const doneDate = new Date(task.completedAt).toDateString();
-                  const dayEntry = chartData.find(d => d.dateStr === doneDate);
-                  if (dayEntry) {
-                      dayEntry.value += value;
-                  }
-              }
-          } else {
-              potentialIncome += value;
+      if (task.status === 'done') {
+        totalEarned += value;
+        // Add to chart if within range
+        if (task.completedAt) {
+          const doneDate = new Date(task.completedAt).toDateString();
+          const dayEntry = chartData.find(d => d.dateStr === doneDate);
+          if (dayEntry) {
+            dayEntry.value += value;
           }
-      });
-      
-      return { totalEarned, potentialIncome, chartData };
+        }
+      } else {
+        potentialIncome += value;
+      }
+    });
+
+    return { totalEarned, potentialIncome, chartData };
   }, [tasks, lang]);
 
   // 5. University Logic: Nearest Upcoming Assignment
   const nearestAssignment = useMemo(() => {
-      const pending = assignments
-        .filter(a => !a.isCompleted)
-        .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
-      
-      if (pending.length === 0) return null;
+    const pending = assignments
+      .filter(a => !a.isCompleted)
+      .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
 
-      const assignment = pending[0];
-      const course = courses.find(c => c.id === assignment.courseId);
-      const diffTime = new Date(assignment.dueDate).getTime() - new Date().getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (pending.length === 0) return null;
 
-      return {
-          title: assignment.title,
-          courseName: course ? course.name : t.university,
-          daysLeft: diffDays,
-          type: assignment.type
-      };
+    const assignment = pending[0];
+    const course = courses.find(c => c.id === assignment.courseId);
+    const diffTime = new Date(assignment.dueDate).getTime() - new Date().getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return {
+      title: assignment.title,
+      courseName: course ? course.name : t.university,
+      daysLeft: diffDays,
+      type: assignment.type
+    };
   }, [assignments, courses, t.university]);
 
   return (
-    <div className="p-6 pb-32 h-full overflow-y-auto no-scrollbar">
+    <div className="p-4 md:p-6 pb-32 h-full overflow-y-auto no-scrollbar">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
         <h1 className="text-3xl font-bold text-white mb-1">
-            {lang === 'fa' ? t.greeting : `${t.greeting}, User`}
+          {lang === 'fa' ? t.greeting : `${t.greeting}, User`}
         </h1>
         <p className="text-white/60 text-lg">{t.subtitle}</p>
       </motion.div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 auto-rows-[minmax(180px,auto)]">
-        
+
         {/* Widget 1: Morning Brief (Wide) */}
         <GlassCard className="md:col-span-2 p-6 flex flex-col justify-between">
           <div className="flex justify-between items-start">
@@ -144,21 +144,21 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
             <div className="flex items-center gap-3">
               <div className={`w-1 h-8 rounded-full ${primaryFocus ? 'bg-blue-400' : 'bg-white/20'}`}></div>
               <span className="text-xl text-white font-medium truncate">
-                  {primaryFocus ? primaryFocus.title : lang === 'fa' ? "هیچ تسک فعالی ندارید" : "No active tasks"}
+                {primaryFocus ? primaryFocus.title : lang === 'fa' ? "هیچ تسک فعالی ندارید" : "No active tasks"}
               </span>
             </div>
           </div>
         </GlassCard>
 
         {/* Widget 2: Focus Ring (Square) - Dynamic Energy */}
-        <GlassCard 
+        <GlassCard
           className="flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-white/20 transition-colors group"
           onClick={onEnterFocus}
         >
-            <FocusRing percentage={progressStats.percentage} size={140} label={t.energy} />
-            <div className="mt-2 text-white/60 text-sm group-hover:text-white transition-colors flex items-center gap-1">
-              {t.tapToFocus} <ArrowUpRight size={14} className="rtl:rotate-180" />
-            </div>
+          <FocusRing percentage={progressStats.percentage} size={140} label={t.energy} />
+          <div className="mt-2 text-white/60 text-sm group-hover:text-white transition-colors flex items-center gap-1">
+            {t.tapToFocus} <ArrowUpRight size={14} className="rtl:rotate-180" />
+          </div>
         </GlassCard>
 
         {/* Widget 3: Income (Square) - Smart Logic */}
@@ -168,96 +168,95 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
               <DollarSign size={18} />
             </div>
             <div className="text-right">
-                <div className="text-xs text-white/40 uppercase">Potential</div>
-                <div className="text-white/80 font-mono text-sm" dir="ltr">${incomeStats.potentialIncome.toLocaleString()}</div>
+              <div className="text-xs text-white/40 uppercase">Potential</div>
+              <div className="text-white/80 font-mono text-sm" dir="ltr">${incomeStats.potentialIncome.toLocaleString()}</div>
             </div>
           </div>
-          
+
           <div className="h-24 w-full -ml-2">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={incomeStats.chartData}>
-                <XAxis dataKey="name" tick={{fontSize: 10, fill: '#ffffff60'}} axisLine={false} tickLine={false} interval={0} />
-                <Tooltip 
-                    contentStyle={{backgroundColor: '#000000aa', border: 'none', borderRadius: '8px', fontSize: '12px'}} 
-                    itemStyle={{color: '#4ade80'}}
-                    labelStyle={{display: 'none'}}
-                    formatter={(value: number) => [`$${value}`, 'Earned']}
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#ffffff60' }} axisLine={false} tickLine={false} interval={0} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: '#000000aa', border: 'none', borderRadius: '8px', fontSize: '12px' }}
+                  itemStyle={{ color: '#4ade80' }}
+                  labelStyle={{ display: 'none' }}
+                  formatter={(value: number) => [`$${value}`, 'Earned']}
                 />
-                <Line 
-                  type="monotone" 
-                  dataKey="value" 
-                  stroke="#4ade80" 
-                  strokeWidth={2} 
-                  dot={{r: 2, fill: '#4ade80'}} 
-                  activeDot={{r: 4, fill: '#fff'}}
+                <Line
+                  type="monotone"
+                  dataKey="value"
+                  stroke="#4ade80"
+                  strokeWidth={2}
+                  dot={{ r: 2, fill: '#4ade80' }}
+                  activeDot={{ r: 4, fill: '#fff' }}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
-          
+
           <div className="mt-1">
             <div className="text-white/50 text-xs uppercase">{t.weeklyIncome}</div>
             <div className="flex items-baseline gap-2">
-                <div className="text-2xl text-white font-mono font-bold" dir="ltr">
-                    ${incomeStats.totalEarned.toLocaleString()}
-                </div>
+              <div className="text-2xl text-white font-mono font-bold" dir="ltr">
+                ${incomeStats.totalEarned.toLocaleString()}
+              </div>
             </div>
           </div>
         </GlassCard>
 
         {/* Widget 4: Uni Countdown (Wide) - Dynamic */}
         <GlassCard className="md:col-span-2 p-6 flex items-center justify-between">
-            {nearestAssignment ? (
-                <>
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-purple-500/20 rounded-2xl text-purple-300">
-                            <GraduationCap size={32} />
-                        </div>
-                        <div>
-                            <div className="text-white/50 text-sm uppercase">{nearestAssignment.courseName}</div>
-                            <div className="text-xl text-white font-semibold">{nearestAssignment.title}</div>
-                        </div>
-                    </div>
-                    <div className="text-right rtl:text-left">
-                        <div className={`text-4xl font-mono font-bold ${nearestAssignment.daysLeft < 3 ? 'text-red-400' : 'text-white'}`}>
-                            {nearestAssignment.daysLeft}
-                        </div>
-                        <div className="text-white/50 text-xs uppercase">{nearestAssignment.daysLeft < 0 ? t.overdue : t.daysLeft}</div>
-                    </div>
-                </>
-            ) : (
-                <div className="w-full h-full flex items-center justify-center gap-4 text-white/50">
-                    <CheckCircle2 size={32} />
-                    <span>{lang === 'fa' ? "هیچ تکلیفی باقی نمانده است!" : "No upcoming assignments. You are free!"}</span>
+          {nearestAssignment ? (
+            <>
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-purple-500/20 rounded-2xl text-purple-300">
+                  <GraduationCap size={32} />
                 </div>
-            )}
+                <div>
+                  <div className="text-white/50 text-sm uppercase">{nearestAssignment.courseName}</div>
+                  <div className="text-xl text-white font-semibold">{nearestAssignment.title}</div>
+                </div>
+              </div>
+              <div className="text-right rtl:text-left">
+                <div className={`text-4xl font-mono font-bold ${nearestAssignment.daysLeft < 3 ? 'text-red-400' : 'text-white'}`}>
+                  {nearestAssignment.daysLeft}
+                </div>
+                <div className="text-white/50 text-xs uppercase">{nearestAssignment.daysLeft < 0 ? t.overdue : t.daysLeft}</div>
+              </div>
+            </>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center gap-4 text-white/50">
+              <CheckCircle2 size={32} />
+              <span>{lang === 'fa' ? "هیچ تکلیفی باقی نمانده است!" : "No upcoming assignments. You are free!"}</span>
+            </div>
+          )}
         </GlassCard>
 
         {/* Widget 5: Quick Task List (Tall) - Dynamic */}
         <GlassCard className="md:col-span-1 md:row-span-2 p-6">
           <div className="flex items-center justify-between mb-4">
-             <h3 className="text-white font-semibold">{t.upNext}</h3>
-             <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse"></div>
+            <h3 className="text-white font-semibold">{t.upNext}</h3>
+            <div className="w-2 h-2 rounded-full bg-red-400 animate-pulse"></div>
           </div>
           <div className="space-y-3">
             {upNextTasks.length > 0 ? upNextTasks.map(task => (
               <div key={task.id} className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
-                 <div className="text-white text-sm font-medium truncate">{task.title}</div>
-                 <div className="flex items-center gap-2 mt-1">
-                   <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                     task.context === 'university' ? 'bg-purple-500/20 text-purple-300' :
-                     task.context === 'freelance' ? 'bg-green-500/20 text-green-300' :
-                     'bg-blue-500/20 text-blue-300'
-                   }`}>
-                     {t.context[task.context]}
-                   </span>
-                   <span className="text-white/40 text-[10px]">{task.dueDate}</span>
-                 </div>
+                <div className="text-white text-sm font-medium truncate">{task.title}</div>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.context === 'university' ? 'bg-purple-500/20 text-purple-300' :
+                      task.context === 'freelance' ? 'bg-green-500/20 text-green-300' :
+                        'bg-blue-500/20 text-blue-300'
+                    }`}>
+                    {t.context[task.context]}
+                  </span>
+                  <span className="text-white/40 text-[10px]">{task.dueDate}</span>
+                </div>
               </div>
             )) : (
-               <div className="text-white/40 text-sm text-center py-4">
-                   {lang === 'fa' ? "همه کارها انجام شده" : "No pending tasks"}
-               </div>
+              <div className="text-white/40 text-sm text-center py-4">
+                {lang === 'fa' ? "همه کارها انجام شده" : "No pending tasks"}
+              </div>
             )}
           </div>
         </GlassCard>
