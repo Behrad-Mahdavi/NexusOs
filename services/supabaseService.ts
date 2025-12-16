@@ -199,3 +199,31 @@ export const saveNode = async (node: Insight, connectedIds: string[]) => {
 export const deleteNode = async (id: string) => {
   return await supabase.from('nodes').delete().eq('id', id);
 };
+
+// --- Focus Sessions ---
+
+export interface FocusSession {
+  id?: string;
+  started_at: string;
+  ended_at?: string;
+  duration_minutes: number;
+  completed: boolean;
+}
+
+export const saveFocusSession = async (session: Omit<FocusSession, 'id'>) => {
+  return await supabase.from('focus_sessions').insert(session).select().single();
+};
+
+export const fetchFocusSessions = async (days: number = 30): Promise<FocusSession[]> => {
+  const since = new Date();
+  since.setDate(since.getDate() - days);
+
+  const { data, error } = await supabase
+    .from('focus_sessions')
+    .select('*')
+    .gte('started_at', since.toISOString())
+    .order('started_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+};

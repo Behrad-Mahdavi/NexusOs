@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Globe, LogOut } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import * as api from './services/supabaseService';
+import { FocusSession } from './services/supabaseService';
 import Auth from './components/Auth';
 import AuroraBackground from './components/AuroraBackground';
 import Dashboard from './components/Dashboard';
@@ -29,6 +30,7 @@ const App: React.FC = () => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [sessionCount, setSessionCount] = useState<number>(0);
+  const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
 
   // --- Auth & Initial Fetch ---
   useEffect(() => {
@@ -53,16 +55,18 @@ const App: React.FC = () => {
   const loadData = async () => {
     try {
       // Fetch parallel
-      const [t, c, a, g] = await Promise.all([
+      const [t, c, a, g, fs] = await Promise.all([
         api.fetchTasks(),
         api.fetchCourses(),
         api.fetchAssignments(),
-        api.fetchGraph()
+        api.fetchGraph(),
+        api.fetchFocusSessions()
       ]);
       setTasks(t);
       setCourses(c);
       setAssignments(a);
       setGraphData(g);
+      setFocusSessions(fs);
     } catch (e) {
       console.error("Error loading data:", e);
     }
@@ -158,8 +162,22 @@ const App: React.FC = () => {
     setLanguage(prev => prev === 'en' ? 'fa' : 'en');
   };
 
-  const handleSessionComplete = () => {
+  const handleSessionComplete = async () => {
     setSessionCount(prev => prev + 1);
+    // Save session to database
+    const newSession: Omit<FocusSession, 'id'> = {
+      started_at: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
+      ended_at: new Date().toISOString(),
+      duration_minutes: 25,
+      completed: true
+    };
+    try {
+      await api.saveFocusSession(newSession);
+      const updated = await api.fetchFocusSessions();
+      setFocusSessions(updated);
+    } catch (e) {
+      console.error('Error saving focus session:', e);
+    }
   };
 
   const commonProps = { lang: language };
@@ -172,14 +190,8 @@ const App: React.FC = () => {
           tasks={tasks}
           courses={courses}
           assignments={assignments}
-          {...commonProps}
-        />;
-      case AppView.FOCUS:
-        return <Dashboard
-          onEnterFocus={() => setIsFocusMode(true)}
-          tasks={tasks}
-          courses={courses}
-          assignments={assignments}
+          focusSessions={focusSessions}
+          sessionCount={sessionCount}
           {...commonProps}
         />;
       case AppView.BRAIN:
@@ -214,6 +226,8 @@ const App: React.FC = () => {
           tasks={tasks}
           courses={courses}
           assignments={assignments}
+          focusSessions={focusSessions}
+          sessionCount={sessionCount}
           {...commonProps}
         />;
     }

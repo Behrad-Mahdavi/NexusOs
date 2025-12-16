@@ -6,6 +6,8 @@ import GlassCard from './GlassCard';
 import FocusRing from './FocusRing';
 import { Language, Task, Course, Assignment } from '../types';
 import { getTranslation } from '../translations';
+import FocusAnalytics from './FocusAnalytics';
+import { FocusSession } from '../services/supabaseService';
 
 interface DashboardProps {
   onEnterFocus: () => void;
@@ -13,9 +15,11 @@ interface DashboardProps {
   tasks: Task[];
   courses: Course[];
   assignments: Assignment[];
+  focusSessions: FocusSession[];
+  sessionCount: number;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, courses, assignments }) => {
+const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, courses, assignments, focusSessions, sessionCount }) => {
   const t = getTranslation(lang);
 
   const today = new Date();
@@ -245,8 +249,8 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
                 <div className="text-white text-sm font-medium truncate">{task.title}</div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.context === 'university' ? 'bg-purple-500/20 text-purple-300' :
-                      task.context === 'freelance' ? 'bg-green-500/20 text-green-300' :
-                        'bg-blue-500/20 text-blue-300'
+                    task.context === 'freelance' ? 'bg-green-500/20 text-green-300' :
+                      'bg-blue-500/20 text-blue-300'
                     }`}>
                     {t.context[task.context]}
                   </span>
@@ -260,6 +264,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
             )}
           </div>
         </GlassCard>
+
+        {/* Widget 6: Focus Analytics */}
+        <div className="md:col-span-3">
+          <FocusAnalytics
+            lang={lang}
+            sessions={focusSessions}
+            todaySessions={sessionCount}
+          />
+        </div>
 
       </div>
     </div>
