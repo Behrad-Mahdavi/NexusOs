@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        @apply font-sans;
+    }
+}
+
+/* Ensure Persian text uses Vazirmatn */
+:lang(fa) {
+    font-family: 'Vazirmatn', sans-serif;
+}
