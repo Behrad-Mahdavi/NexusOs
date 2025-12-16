@@ -37,19 +37,19 @@ export const saveTask = async (task: Task) => {
     revenue: task.revenue
   };
 
-  if (task.id.length > 30) { 
-      // Assume long UUIDs are existing DB records, simple timestamp IDs are local/new
-      // However, we should handle upsert based on ID. 
-      // If ID is numeric timestamp (from old local code), let Supabase gen a new UUID.
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(task.id);
-      
-      if (isUUID) {
-         return await supabase.from('tasks').update(payload).eq('id', task.id).selectSingle();
-      }
+  if (task.id.length > 30) {
+    // Assume long UUIDs are existing DB records, simple timestamp IDs are local/new
+    // However, we should handle upsert based on ID. 
+    // If ID is numeric timestamp (from old local code), let Supabase gen a new UUID.
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(task.id);
+
+    if (isUUID) {
+      return await supabase.from('tasks').update(payload).eq('id', task.id).select().single();
+    }
   }
-  
+
   // Create new
-  return await supabase.from('tasks').insert(payload).selectSingle();
+  return await supabase.from('tasks').insert(payload).select().single();
 };
 
 export const deleteTask = async (id: string) => {
@@ -86,9 +86,9 @@ export const saveCourse = async (course: Course) => {
 
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(course.id);
   if (isUUID) {
-    return await supabase.from('courses').update(payload).eq('id', course.id).selectSingle();
+    return await supabase.from('courses').update(payload).eq('id', course.id).select().single();
   }
-  return await supabase.from('courses').insert(payload).selectSingle();
+  return await supabase.from('courses').insert(payload).select().single();
 };
 
 export const deleteCourse = async (id: string) => {
@@ -116,16 +116,16 @@ export const saveAssignment = async (assign: Assignment) => {
     due_date: assign.dueDate ? new Date(assign.dueDate).toISOString() : null,
     is_completed: assign.isCompleted
   };
-  
+
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assign.id);
   if (isUUID) {
-    return await supabase.from('assignments').update(payload).eq('id', assign.id).selectSingle();
+    return await supabase.from('assignments').update(payload).eq('id', assign.id).select().single();
   }
-  return await supabase.from('assignments').insert(payload).selectSingle();
+  return await supabase.from('assignments').insert(payload).select().single();
 };
 
 export const deleteAssignment = async (id: string) => {
-    return await supabase.from('assignments').delete().eq('id', id);
+  return await supabase.from('assignments').delete().eq('id', id);
 };
 
 // --- Graph ---
@@ -155,47 +155,47 @@ export const fetchGraph = async (): Promise<GraphData> => {
 };
 
 export const saveNode = async (node: Insight, connectedIds: string[]) => {
-    // 1. Upsert Node
-    const nodePayload = {
-        label: node.label,
-        group_id: node.group,
-        val: node.val
-    };
+  // 1. Upsert Node
+  const nodePayload = {
+    label: node.label,
+    group_id: node.group,
+    val: node.val
+  };
 
-    let nodeId = node.id;
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(node.id);
+  let nodeId = node.id;
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(node.id);
 
-    if (isUUID) {
-        await supabase.from('nodes').update(nodePayload).eq('id', nodeId);
-    } else {
-        const { data } = await supabase.from('nodes').insert(nodePayload).selectSingle();
-        if (data) nodeId = data.id;
-    }
+  if (isUUID) {
+    await supabase.from('nodes').update(nodePayload).eq('id', nodeId);
+  } else {
+    const { data } = await supabase.from('nodes').insert(nodePayload).select().single();
+    if (data) nodeId = data.id;
+  }
 
-    // 2. Manage Links (Simple strategy: delete all for this node and recreate)
-    // Find links where this node is source or target
-    // Note: RLS allows this.
-    
-    // Deleting complex links via ID logic is harder without knowing Link IDs.
-    // For this implementation, we will fetch existing links, compare, and add/remove.
-    // A simpler approach for the prototype: 
-    // Just insert new links that don't exist.
-    
-    // Let's implement a clean "Sync Links" manually in UI or just add new ones.
-    // For this specific func, let's just insert the new connections provided in connectedIds.
-    
-    const newLinks = connectedIds.map(targetId => ({
-        source: nodeId,
-        target: targetId
-    }));
-    
-    if (newLinks.length > 0) {
-        await supabase.from('links').insert(newLinks); 
-    }
+  // 2. Manage Links (Simple strategy: delete all for this node and recreate)
+  // Find links where this node is source or target
+  // Note: RLS allows this.
 
-    return nodeId;
+  // Deleting complex links via ID logic is harder without knowing Link IDs.
+  // For this implementation, we will fetch existing links, compare, and add/remove.
+  // A simpler approach for the prototype: 
+  // Just insert new links that don't exist.
+
+  // Let's implement a clean "Sync Links" manually in UI or just add new ones.
+  // For this specific func, let's just insert the new connections provided in connectedIds.
+
+  const newLinks = connectedIds.map(targetId => ({
+    source: nodeId,
+    target: targetId
+  }));
+
+  if (newLinks.length > 0) {
+    await supabase.from('links').insert(newLinks);
+  }
+
+  return nodeId;
 };
 
 export const deleteNode = async (id: string) => {
-    return await supabase.from('nodes').delete().eq('id', id);
+  return await supabase.from('nodes').delete().eq('id', id);
 };
