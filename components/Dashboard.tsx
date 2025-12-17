@@ -29,10 +29,34 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
 
   // --- Dynamic Logic ---
 
-  // 1. Up Next: Tasks not done, sorted by due date or status
+  // Helpers for Dual Energy Model
+  const DAILY_CAPACITY = 100;
+
+  const calculateUrgency = (dueDate: string): number => {
+    if (!dueDate) return 0.5;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(dueDate);
+    due.setHours(0, 0, 0, 0);
+    const diffTime = due.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 0) return 3; // Today or Overdue
+    if (diffDays === 1) return 2; // Tomorrow
+    if (diffDays <= 7) return 1; // This week
+    return 0.5; // Later
+  };
+
+  const calculateLoad = (energyCost: number, dueDate: string): number => {
+    return energyCost * calculateUrgency(dueDate);
+  };
+
+  // 1. Up Next: Sorted by Cognitive Load (Urgency * Effort)
   const upNextTasks = useMemo(() => {
     return tasks
       .filter(task => task.status !== 'done')
+      .map(t => ({ ...t, load: calculateLoad(t.energyCost, t.dueDate) }))
+      .sort((a, b) => b.load - a.load) // Highest load first
       .slice(0, 3);
   }, [tasks]);
 
@@ -41,13 +65,19 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
     return tasks.find(t => t.status === 'doing') || tasks.find(t => t.status === 'todo');
   }, [tasks]);
 
-  // 3. Energy / Progress Calculation
+  // 3. Cognitive Load / Capacity Calculation
   const progressStats = useMemo(() => {
-    const totalEnergy = tasks.reduce((acc, curr) => acc + curr.energyCost, 0);
-    const completedEnergy = tasks.filter(t => t.status === 'done').reduce((acc, curr) => acc + curr.energyCost, 0);
+    // Capacity logic: 
+    // Show how much "Load" has been consumed today vs Daily Capacity.
 
-    const percentage = totalEnergy === 0 ? 0 : Math.round((completedEnergy / totalEnergy) * 100);
-    return { percentage, completedEnergy, totalEnergy };
+    // 1. Approved Load: Tasks done TODAY
+    const consumedLoad = tasks
+      .filter(t => t.status === 'done' && t.completedAt && new Date(t.completedAt).toDateString() === new Date().toDateString())
+      .reduce((acc, t) => acc + calculateLoad(t.energyCost, t.dueDate), 0);
+
+    const percentage = Math.min(Math.round((consumedLoad / DAILY_CAPACITY) * 100), 100);
+
+    return { percentage, consumedLoad, totalCapacity: DAILY_CAPACITY };
   }, [tasks]);
 
   // 4. Smart Income Logic
@@ -159,7 +189,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
           className="flex flex-col items-center justify-center p-4 cursor-pointer hover:bg-white/20 transition-colors group"
           onClick={onEnterFocus}
         >
-          <FocusRing percentage={progressStats.percentage} size={140} label={t.energy} />
+          <FocusRing percentage={progressStats.percentage} size={140} label={lang === 'fa' ? 'ظرفیت مغز' : 'Brain Load'} />
           <div className="mt-2 text-white/60 text-sm group-hover:text-white transition-colors flex items-center gap-1">
             {t.tapToFocus} <ArrowUpRight size={14} className="rtl:rotate-180" />
           </div>

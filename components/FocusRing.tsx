@@ -41,8 +41,8 @@ const FocusRing: React.FC<FocusRingProps> = ({ percentage, size = 120, strokeWid
         />
         <defs>
           <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#38bdf8" />
-            <stop offset="100%" stopColor="#ec4899" />
+            <stop offset="0%" stopColor={percentage > 80 ? "#ef4444" : "#38bdf8"} />
+            <stop offset="100%" stopColor={percentage > 80 ? "#b91c1c" : "#ec4899"} />
           </linearGradient>
         </defs>
       </svg>
