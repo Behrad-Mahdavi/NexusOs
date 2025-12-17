@@ -39,8 +39,17 @@ const App: React.FC = () => {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        // Clear local state if needed
+        setSession(null);
+        setTasks([]);
+        setCourses([]);
+        setAssignments([]);
+        setFocusSessions([]);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setSession(session);
+      }
     });
 
     return () => subscription.unsubscribe();

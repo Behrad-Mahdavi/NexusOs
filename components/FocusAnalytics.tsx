@@ -142,7 +142,7 @@ const FocusAnalytics: React.FC<FocusAnalyticsProps> = ({ lang, sessions, todaySe
                     <Brain size={18} className="text-pink-400" />
                     <h3 className="text-white font-semibold text-sm">{lang === 'fa' ? 'آمار هفتگی' : 'Weekly Focus'}</h3>
                 </div>
-                <div className="h-32">
+                <div className="h-32 min-h-[130px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={stats.weeklyData}>
                             <XAxis
