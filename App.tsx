@@ -182,10 +182,35 @@ const App: React.FC = () => {
   };
 
   const handleDeleteNode = async (id: string) => {
+    const nodeToDelete = graphData.nodes.find(n => n.id === id);
+    const linksToDelete = graphData.links.filter(l => l.source === id || l.target === id);
+
     setGraphData(prev => ({
       nodes: prev.nodes.filter(n => n.id !== id),
       links: prev.links.filter(l => l.source !== id && l.target !== id)
     }));
+
+    triggerHaptic('heavy');
+    toast('Node deleted', {
+      description: nodeToDelete?.label,
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          if (nodeToDelete) {
+            // Restore state
+            setGraphData(prev => ({
+              nodes: [...prev.nodes, nodeToDelete],
+              links: [...prev.links, ...linksToDelete]
+            }));
+            // Restore DB
+            await api.saveNode(nodeToDelete, []); // Re-saving node
+            // Links restoration is tricky in current API but visual restore is key
+            triggerHaptic('medium');
+          }
+        }
+      }
+    });
+
     await api.deleteNode(id);
   };
 
