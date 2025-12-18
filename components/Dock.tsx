@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutGrid, Focus, Brain, Briefcase, GraduationCap, Wallet } from 'lucide-react';
+import { LayoutGrid, Focus, Brain, Briefcase, GraduationCap, Wallet, BookOpen } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppView, Language } from '../types';
 import { getTranslation } from '../translations';
@@ -16,6 +16,7 @@ const Dock: React.FC<DockProps> = ({ currentView, setView, lang }) => {
   const items = [
     { id: AppView.DASHBOARD, icon: LayoutGrid, label: t.home },
     { id: AppView.UNIVERSITY, icon: GraduationCap, label: t.university },
+    { id: AppView.READING, icon: BookOpen, label: lang === 'fa' ? 'کتابخانه' : 'Library' },
     { id: AppView.FOCUS, icon: Focus, label: t.focus },
     { id: AppView.BRAIN, icon: Brain, label: t.brain },
     { id: AppView.FREELANCE, icon: Briefcase, label: t.work },

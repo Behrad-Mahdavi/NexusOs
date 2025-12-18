@@ -13,6 +13,7 @@ import KnowledgeGraph from './components/KnowledgeGraph';
 import FreelanceBoard from './components/FreelanceBoard';
 import UniversityDashboard from './components/UniversityDashboard';
 import FinanceDashboard from './components/FinanceDashboard';
+import ReadingList from './components/ReadingList';
 import { AppView, Language, Task, GraphData, Course, Assignment, Insight } from './types';
 import { MOCK_TASKS, GRAPH_DATA, MOCK_COURSES, MOCK_ASSIGNMENTS } from './constants';
 
@@ -254,6 +255,14 @@ const App: React.FC = () => {
         />;
       case AppView.FINANCE:
         return <FinanceDashboard tasks={tasks} {...commonProps} />;
+      case AppView.READING:
+        return <ReadingList
+          tasks={tasks}
+          onSaveTask={(task) => handleSaveTask(task).then(() => { })}
+          onDeleteTask={(id) => handleDeleteTask(id).then(() => { })}
+          onReadingProgress={handleReadingProgress}
+          {...commonProps}
+        />;
       default:
         return <Dashboard
           onEnterFocus={() => setIsFocusMode(true)}

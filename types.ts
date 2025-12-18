@@ -85,5 +85,6 @@ export enum AppView {
   BRAIN = 'brain',
   FREELANCE = 'freelance',
   UNIVERSITY = 'university',
-  FINANCE = 'finance'
+  FINANCE = 'finance',
+  READING = 'reading'
 }
