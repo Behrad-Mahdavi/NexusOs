@@ -2,7 +2,6 @@ import { supabase } from '../lib/supabase';
 import { Task, Course, Assignment, GraphData, Insight, Link, TaskContext, TaskStatus } from '../types';
 
 // --- Helper: Get Current User ---
-// این تابع کمکی تضمین می‌کند که همیشه آیدی کاربر را داریم
 const getCurrentUserId = async () => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error("User not authenticated");
@@ -36,11 +35,14 @@ export const fetchTasks = async (): Promise<Task[]> => {
   }));
 };
 
+// *** اصلاح شده ***
 export const saveTask = async (task: Task) => {
   const userId = await getCurrentUserId();
   
+  // ۱. آیدی را حتما در پیلود قرار می‌دهیم
   const payload = {
-    user_id: userId, // Explicitly set owner
+    id: task.id, // <--- بسیار مهم برای Upsert
+    user_id: userId,
     title: task.title,
     context: task.context,
     status: task.status,
@@ -53,17 +55,20 @@ export const saveTask = async (task: Task) => {
     current_page: task.currentPage
   };
 
-  if (task.id.length > 30) {
-    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(task.id);
-    if (isUUID) {
-      // برای آپدیت نیازی به ارسال مجدد user_id نیست مگر اینکه بخواهیم مالکیت را عوض کنیم (که نمی‌خواهیم)
-      // اما برای اطمینان از اینکه فقط خود کاربر ادیت می‌کند، RLS جلوی دسترسی غیرمجاز را می‌گیرد
-      const { user_id, ...updatePayload } = payload; 
-      return await supabase.from('tasks').update(updatePayload).eq('id', task.id).select().single();
-    }
+  // ۲. استفاده از upsert به جای منطق شرطی insert/update
+  // این متد خودش می‌فهمد اگر ID جدید است بسازد، اگر هست آپدیت کند.
+  const { data, error } = await supabase
+    .from('tasks')
+    .upsert(payload) 
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Save Task Error:", error);
+    throw error;
   }
 
-  return await supabase.from('tasks').insert(payload).select().single();
+  return data;
 };
 
 export const deleteTask = async (id: string) => {
@@ -92,6 +97,7 @@ export const saveCourse = async (course: Course) => {
   const userId = await getCurrentUserId();
 
   const payload = {
+    id: course.id, // اضافه شده برای upsert
     user_id: userId,
     name: course.name,
     professor_name: course.professor,
@@ -101,12 +107,8 @@ export const saveCourse = async (course: Course) => {
     location: course.location
   };
 
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(course.id);
-  if (isUUID) {
-    const { user_id, ...updatePayload } = payload;
-    return await supabase.from('courses').update(updatePayload).eq('id', course.id).select().single();
-  }
-  return await supabase.from('courses').insert(payload).select().single();
+  // اینجا هم upsert بهتر است
+  return await supabase.from('courses').upsert(payload).select().single();
 };
 
 export const deleteCourse = async (id: string) => {
@@ -130,12 +132,8 @@ export const saveAssignment = async (assign: Assignment) => {
   const userId = await getCurrentUserId();
 
   const payload = {
-    // Note: Assignments are linked to Courses which are linked to Users.
-    // Ideally assignment table should also have user_id for easier RLS, 
-    // OR we rely on RLS checking the course ownership. 
-    // For safety in this prototype, I'm assuming you added user_id to assignments too based on previous steps.
-    // If not, remove this line, but best practice is to have it.
-    // user_id: userId, 
+    id: assign.id, // اضافه شده برای upsert
+    user_id: userId, 
     course_id: assign.courseId,
     title: assign.title,
     type: assign.type,
@@ -143,11 +141,7 @@ export const saveAssignment = async (assign: Assignment) => {
     is_completed: assign.isCompleted
   };
 
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(assign.id);
-  if (isUUID) {
-    return await supabase.from('assignments').update(payload).eq('id', assign.id).select().single();
-  }
-  return await supabase.from('assignments').insert(payload).select().single();
+  return await supabase.from('assignments').upsert(payload).select().single();
 };
 
 export const deleteAssignment = async (id: string) => {
@@ -184,27 +178,22 @@ export const saveNode = async (node: Insight, connectedIds: string[]) => {
   const userId = await getCurrentUserId();
   
   const nodePayload = {
+    id: node.id, // اضافه شده برای upsert
     user_id: userId,
     label: node.label,
     group_id: node.group,
     val: node.val
   };
 
-  let nodeId = node.id;
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(node.id);
+  // Upsert Node
+  await supabase.from('nodes').upsert(nodePayload);
 
-  if (isUUID) {
-    const { user_id, ...updatePayload } = nodePayload;
-    await supabase.from('nodes').update(updatePayload).eq('id', nodeId);
-  } else {
-    const { data } = await supabase.from('nodes').insert(nodePayload).select().single();
-    if (data) nodeId = data.id;
-  }
-
-  // Links handling (Simplified)
+  // Links handling
+  // برای لینک‌ها کمی پیچیده‌تر است چون ID نداریم، اما استراتژی فعلی (Insert) کار می‌کند
+  // به شرطی که تکراری نسازیم. برای سادگی فعلاً همان اینسرت باقی می‌ماند
   const newLinks = connectedIds.map(targetId => ({
-    // user_id: userId, // Uncomment if links table has user_id
-    source: nodeId,
+    user_id: userId, // یادت نرود ستون user_id را در دیتابیس برای links اضافه کرده باشی
+    source: node.id,
     target: targetId
   }));
 
@@ -212,14 +201,14 @@ export const saveNode = async (node: Insight, connectedIds: string[]) => {
     await supabase.from('links').insert(newLinks);
   }
 
-  return nodeId;
+  return node.id;
 };
 
 export const deleteNode = async (id: string) => {
   return await supabase.from('nodes').delete().eq('id', id);
 };
 
-// --- Focus Sessions (THE FIX) ---
+// --- Focus Sessions ---
 
 export interface FocusSession {
   id?: string;
@@ -227,20 +216,13 @@ export interface FocusSession {
   ended_at?: string;
   duration_minutes: number;
   completed: boolean;
-  user_id?: string; // Added for type safety
+  user_id?: string; 
 }
 
 export const saveFocusSession = async (session: Omit<FocusSession, 'id'>) => {
-  // 1. Get User ID Explicitly
   const userId = await getCurrentUserId();
+  const payload = { ...session, user_id: userId };
 
-  // 2. Prepare Payload with User ID
-  const payload = {
-    ...session,
-    user_id: userId
-  };
-
-  // 3. Insert
   const { data, error } = await supabase
     .from('focus_sessions')
     .insert(payload)
@@ -251,7 +233,6 @@ export const saveFocusSession = async (session: Omit<FocusSession, 'id'>) => {
     console.error("Supabase Save Error:", error);
     throw error;
   }
-  
   return data;
 };
 
@@ -272,11 +253,10 @@ export const fetchFocusSessions = async (days: number = 30): Promise<FocusSessio
 // --- Reading Tracker ---
 
 export const saveReadingSession = async (taskId: string, pagesRead: number) => {
-  // Reading sessions also need ownership if RLS is on
   const userId = await getCurrentUserId();
   
   return await supabase.from('reading_sessions').insert({
-    user_id: userId, // Add this column to DB if missing, or ensure default logic works
+    user_id: userId, 
     task_id: taskId,
     pages_read: pagesRead
   });
