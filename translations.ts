@@ -35,6 +35,7 @@ export const TRANSLATIONS = {
     save: "Save",
     cancel: "Cancel",
     delete: "Delete",
+    deleteConfirm: "Are you sure you want to delete this node?", // <--- Added
     contextLabel: "Context",
     energyLabel: "Energy Cost",
     statusLabel: "Status",
@@ -123,6 +124,7 @@ export const TRANSLATIONS = {
     save: "ذخیره",
     cancel: "لغو",
     delete: "حذف",
+    deleteConfirm: "آیا از حذف این گره مطمئن هستید؟", // <--- Added
     contextLabel: "دسته‌بندی",
     energyLabel: "هزینه انرژی",
     statusLabel: "وضعیت",
