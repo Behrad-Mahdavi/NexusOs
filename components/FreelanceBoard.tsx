@@ -23,7 +23,6 @@ const FreelanceBoard: React.FC<FreelanceBoardProps> = ({ lang, tasks, onSaveTask
     const [energy, setEnergy] = useState<1 | 2 | 3>(2);
     const [context, setContext] = useState<TaskContext>('freelance');
     const [status, setStatus] = useState<TaskStatus>('todo');
-    const [status, setStatus] = useState<TaskStatus>('todo');
     const [revenue, setRevenue] = useState<string>(''); // Handle as string for input
 
     // Reading Fields
