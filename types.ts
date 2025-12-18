@@ -5,6 +5,7 @@ export type Language = 'en' | 'fa';
 
 export type TaskContext = 'university' | 'freelance' | 'growth' | 'life';
 export type TaskStatus = 'todo' | 'doing' | 'done';
+export type TaskType = 'standard' | 'reading';
 
 export interface Task {
   id: UUID;
@@ -17,6 +18,10 @@ export interface Task {
   relatedEntityId?: UUID;
   tags: string[];
   revenue?: number; // Explicit revenue amount
+  // Reading Tracker
+  type?: TaskType;
+  totalPages?: number;
+  currentPage?: number;
 }
 
 export interface Client {

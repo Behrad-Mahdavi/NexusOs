@@ -7,7 +7,9 @@ import FocusRing from './FocusRing';
 import { Language, Task, Course, Assignment } from '../types';
 import { getTranslation } from '../translations';
 import FocusAnalytics from './FocusAnalytics';
+import ReadingProgressModal from './ReadingProgressModal';
 import { FocusSession } from '../services/supabaseService';
+import { div } from 'framer-motion/client';
 
 interface DashboardProps {
   onEnterFocus: () => void;
@@ -17,10 +19,23 @@ interface DashboardProps {
   assignments: Assignment[];
   focusSessions: FocusSession[];
   sessionCount: number;
+  todayReadingSessions: { task_id: string; pages_read: number }[];
+  onReadingProgress: (taskId: string, newPage: number, pagesRead: number) => Promise<void>;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, courses, assignments, focusSessions, sessionCount }) => {
+const Dashboard: React.FC<DashboardProps> = ({
+  onEnterFocus,
+  lang,
+  tasks,
+  courses,
+  assignments,
+  focusSessions,
+  sessionCount,
+  todayReadingSessions,
+  onReadingProgress
+}) => {
   const t = getTranslation(lang);
+  const [selectedReadingTask, setSelectedReadingTask] = React.useState<Task | null>(null);
 
   const today = new Date();
   const dateString = lang === 'fa'
@@ -275,8 +290,13 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
           </div>
           <div className="space-y-3">
             {upNextTasks.length > 0 ? upNextTasks.map(task => (
-              <div key={task.id} className="p-3 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-colors">
-                <div className="text-white text-sm font-medium truncate">{task.title}</div>
+              <div key={task.id}
+                onClick={() => task.type === 'reading' && setSelectedReadingTask(task)}
+                className={`p-3 rounded-xl border border-white/10 transition-colors ${task.type === 'reading' ? 'bg-blue-500/10 hover:bg-blue-500/20 cursor-pointer' : 'bg-white/5 hover:bg-white/10'}`}>
+                <div className="flex justify-between items-center">
+                  <div className="text-white text-sm font-medium truncate">{task.title}</div>
+                  {task.type === 'reading' && <div className="text-[10px] text-blue-300 bg-blue-500/20 px-1.5 rounded">READ</div>}
+                </div>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`text-[10px] px-1.5 py-0.5 rounded ${task.context === 'university' ? 'bg-purple-500/20 text-purple-300' :
                     task.context === 'freelance' ? 'bg-green-500/20 text-green-300' :
@@ -305,6 +325,15 @@ const Dashboard: React.FC<DashboardProps> = ({ onEnterFocus, lang, tasks, course
         </div>
 
       </div>
+
+      {selectedReadingTask && (
+        <ReadingProgressModal
+          isOpen={!!selectedReadingTask}
+          onClose={() => setSelectedReadingTask(null)}
+          task={selectedReadingTask}
+          onSave={onReadingProgress}
+        />
+      )}
     </div>
   );
 };

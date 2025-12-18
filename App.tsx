@@ -31,6 +31,7 @@ const App: React.FC = () => {
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [sessionCount, setSessionCount] = useState<number>(0);
   const [focusSessions, setFocusSessions] = useState<FocusSession[]>([]);
+  const [todayReadingSessions, setTodayReadingSessions] = useState<{ task_id: string; pages_read: number }[]>([]);
 
   // --- Auth & Initial Fetch ---
   useEffect(() => {
@@ -46,7 +47,10 @@ const App: React.FC = () => {
         setTasks([]);
         setCourses([]);
         setAssignments([]);
+        setCourses([]);
+        setAssignments([]);
         setFocusSessions([]);
+        setTodayReadingSessions([]);
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setSession(session);
       }
@@ -75,7 +79,10 @@ const App: React.FC = () => {
       setCourses(c);
       setAssignments(a);
       setGraphData(g);
+      setGraphData(g);
       setFocusSessions(fs);
+      const trs = await api.fetchTodayReadingSessions();
+      setTodayReadingSessions(trs);
     } catch (e) {
       console.error("Error loading data:", e);
     }
@@ -189,6 +196,22 @@ const App: React.FC = () => {
     }
   };
 
+  const handleReadingProgress = async (taskId: string, newPage: number, pagesRead: number) => {
+    // 1. Update Task (Optimistic)
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, currentPage: newPage } : t));
+
+    // 2. Update DB
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      const updatedTask = { ...task, currentPage: newPage };
+      await api.saveTask(updatedTask);
+      await api.saveReadingSession(taskId, pagesRead);
+
+      // 3. Update Local Reading Sessions
+      setTodayReadingSessions(prev => [...prev, { task_id: taskId, pages_read: pagesRead }]);
+    }
+  };
+
   const commonProps = { lang: language };
 
   const renderView = () => {
@@ -201,6 +224,8 @@ const App: React.FC = () => {
           assignments={assignments}
           focusSessions={focusSessions}
           sessionCount={sessionCount}
+          todayReadingSessions={todayReadingSessions}
+          onReadingProgress={handleReadingProgress}
           {...commonProps}
         />;
       case AppView.BRAIN:
@@ -237,6 +262,8 @@ const App: React.FC = () => {
           assignments={assignments}
           focusSessions={focusSessions}
           sessionCount={sessionCount}
+          todayReadingSessions={todayReadingSessions}
+          onReadingProgress={handleReadingProgress}
           {...commonProps}
         />;
     }

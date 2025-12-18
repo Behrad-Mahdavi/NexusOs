@@ -22,7 +22,11 @@ export const fetchTasks = async (): Promise<Task[]> => {
     dueDate: t.due_date ? t.due_date.split('T')[0] : '',
     completedAt: t.completed_at,
     tags: [], // Tags can be added to DB later if needed
-    revenue: t.revenue || 0
+    revenue: t.revenue || 0,
+    // Reading Fields
+    type: t.type || 'standard',
+    totalPages: t.total_pages,
+    currentPage: t.current_page
   }));
 };
 
@@ -34,7 +38,11 @@ export const saveTask = async (task: Task) => {
     energy_cost: task.energyCost,
     due_date: task.dueDate ? new Date(task.dueDate).toISOString() : null,
     completed_at: task.completedAt ? new Date(task.completedAt).toISOString() : null,
-    revenue: task.revenue
+    revenue: task.revenue,
+    // Reading Fields
+    type: task.type || 'standard',
+    total_pages: task.totalPages,
+    current_page: task.currentPage
   };
 
   if (task.id.length > 30) {
@@ -225,5 +233,28 @@ export const fetchFocusSessions = async (days: number = 30): Promise<FocusSessio
     .order('started_at', { ascending: false });
 
   if (error) throw error;
+  if (error) throw error;
   return data || [];
+};
+
+// --- Reading Tracker ---
+
+export const saveReadingSession = async (taskId: string, pagesRead: number) => {
+  return await supabase.from('reading_sessions').insert({
+    task_id: taskId,
+    pages_read: pagesRead
+  });
+};
+
+export const fetchTodayReadingSessions = async (): Promise<{ task_id: string; pages_read: number }[]> => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from('reading_sessions')
+    .select('task_id, pages_read')
+    .gte('session_date', today.toISOString());
+
+  if (error || !data) return [];
+  return data;
 };
