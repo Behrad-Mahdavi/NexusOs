@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { X, Play, Pause } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Play, Pause, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { triggerHaptic } from '../utils/feedback';
 import { Language } from '../types';
@@ -13,49 +13,93 @@ interface FocusTimerProps {
   sessionCount: number;
 }
 
+const STORAGE_KEY = 'focus_timer_end_time';
+const DEFAULT_TIME = 25 * 60;
+
 const FocusTimer: React.FC<FocusTimerProps> = ({ exitFocus, lang, onSessionComplete, sessionCount }) => {
   const t = getTranslation(lang);
-  const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes
+  
+  // State ها
+  const [timeLeft, setTimeLeft] = useState(DEFAULT_TIME);
   const [isActive, setIsActive] = useState(false);
+  const [endTime, setEndTime] = useState<number | null>(null);
 
+  // ۱. مقداردهی اولیه از LocalStorage
   useEffect(() => {
-    // Mount (Start Focus)
+    const savedEndTime = localStorage.getItem(STORAGE_KEY);
+    if (savedEndTime) {
+      const end = parseInt(savedEndTime, 10);
+      const now = Date.now();
+      
+      if (end > now) {
+        setEndTime(end);
+        setIsActive(true);
+        setTimeLeft(Math.round((end - now) / 1000));
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+    }
+
     triggerHaptic('light');
-    toast('Deep Work Initiated', {
+    toast(t.deepWorkMode, {
       icon: '🧠',
       description: 'Focus on the present task.'
     });
-    setIsActive(true);
-  }, []);
+  }, [t.deepWorkMode]);
 
+  // ۲. منطق اصلی تایمر (دقیق و بدون لغزش)
   useEffect(() => {
     let interval: number;
 
-    if (isActive) {
-      const startTime = Date.now();
-      const initialTimeLeft = timeLeft;
-
-      interval = setInterval(() => {
-        const secondsPassed = Math.floor((Date.now() - startTime) / 1000);
-        const remaining = initialTimeLeft - secondsPassed;
+    if (isActive && endTime) {
+      interval = window.setInterval(() => {
+        const now = Date.now();
+        const remaining = Math.max(0, Math.round((endTime - now) / 1000));
 
         if (remaining <= 0) {
-          setTimeLeft(0);
-          setIsActive(false);
-          onSessionComplete();
-          clearInterval(interval);
-          if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+          handleComplete();
         } else {
           setTimeLeft(remaining);
         }
-      }, 1000) as unknown as number;
+      }, 500); // چک کردن هر ۵۰۰ میلی‌ثانیه برای نرمی نمایشگر
     }
 
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isActive, onSessionComplete]);
+  }, [isActive, endTime]);
 
-  const toggleTimer = () => setIsActive(!isActive);
+  // ۳. توابع کنترلر
+  const handleComplete = useCallback(() => {
+    setIsActive(false);
+    setEndTime(null);
+    setTimeLeft(DEFAULT_TIME);
+    localStorage.removeItem(STORAGE_KEY);
+    onSessionComplete();
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    toast.success('Session Completed!');
+  }, [onSessionComplete]);
+
+  const toggleTimer = () => {
+    if (!isActive) {
+      const newEndTime = Date.now() + timeLeft * 1000;
+      setEndTime(newEndTime);
+      setIsActive(true);
+      localStorage.setItem(STORAGE_KEY, newEndTime.toString());
+    } else {
+      setIsActive(false);
+      setEndTime(null);
+      localStorage.removeItem(STORAGE_KEY);
+      // وقتی متوقف می‌شود، timeLeft آخرین مقدارش را حفظ می‌کند
+    }
+    triggerHaptic('medium');
+  };
+
+  const resetTimer = () => {
+    setIsActive(false);
+    setEndTime(null);
+    setTimeLeft(DEFAULT_TIME);
+    localStorage.removeItem(STORAGE_KEY);
+    triggerHaptic('light');
+  };
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
@@ -65,14 +109,15 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ exitFocus, lang, onSessionCompl
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/60 backdrop-blur-3xl"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 backdrop-blur-3xl"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
+      {/* دکمه خروج */}
       <button
         onClick={exitFocus}
-        className="absolute top-8 right-8 rtl:right-auto rtl:left-8 p-3 rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white transition-colors"
+        className="absolute top-8 right-8 rtl:right-auto rtl:left-8 p-3 rounded-full bg-white/10 text-white/70 hover:bg-white/20 transition-colors"
       >
         <X size={24} />
       </button>
@@ -82,11 +127,11 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ exitFocus, lang, onSessionCompl
           className="text-white/50 text-sm uppercase tracking-[0.2em] mb-4"
           initial={{ y: -20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.2 }}
         >
           {t.deepWorkMode}
         </motion.div>
 
+        {/* نمایشگر تایمر */}
         <motion.div
           className="text-[120px] md:text-[180px] font-mono font-bold text-white leading-none tracking-tighter tabular-nums"
           layoutId="timer-display"
@@ -94,30 +139,49 @@ const FocusTimer: React.FC<FocusTimerProps> = ({ exitFocus, lang, onSessionCompl
           {formatTime(timeLeft)}
         </motion.div>
 
+        {/* دکمه‌های کنترل */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mt-8 flex items-center gap-6"
+          className="mt-8 flex items-center gap-4"
         >
           <button
             onClick={toggleTimer}
-            className="flex items-center gap-3 px-8 py-4 bg-white text-black rounded-full font-semibold text-lg hover:scale-105 transition-transform active:scale-95"
+            className={`flex items-center gap-3 px-10 py-5 rounded-full font-bold text-xl transition-all active:scale-95 ${
+              isActive 
+                ? 'bg-white/10 text-white border border-white/20' 
+                : 'bg-white text-black hover:scale-105'
+            }`}
           >
-            {isActive ? <Pause size={24} fill="black" /> : <Play size={24} fill="black" />}
+            {isActive ? <Pause size={28} fill="currentColor" /> : <Play size={28} fill="currentColor" />}
             {isActive ? t.pause : t.startFocus}
+          </button>
+
+          <button
+            onClick={resetTimer}
+            className="p-5 rounded-full bg-white/5 text-white/50 hover:bg-white/10 hover:text-white transition-colors"
+            title="Reset"
+          >
+            <RefreshCw size={24} />
           </button>
         </motion.div>
 
-        <div className="mt-12 flex gap-2">
-          {[...Array(4)].map((_, i) => (
-            <div
-              key={i}
-              className={`w-3 h-3 rounded-full ${i < sessionCount ? 'bg-white' : 'bg-white/20'}`}
-            />
-          ))}
+        {/* ایندیکاتور جلسات */}
+        <div className="mt-16 flex flex-col items-center gap-4">
+          <div className="flex gap-3">
+            {[...Array(4)].map((_, i) => (
+              <motion.div
+                key={i}
+                className={`w-3 h-3 rounded-full ${i < sessionCount ? 'bg-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.5)]' : 'bg-white/20'}`}
+                animate={i === sessionCount && isActive ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] } : {}}
+                transition={{ repeat: Infinity, duration: 2 }}
+              />
+            ))}
+          </div>
+          <p className="text-white/40 text-sm font-medium tracking-wide">
+            {sessionCount} {t.sessionsCompleted}
+          </p>
         </div>
-        <p className="mt-4 text-white/40 text-sm">{t.sessionsCompleted}</p>
       </div>
     </motion.div>
   );
