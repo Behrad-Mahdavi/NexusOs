@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import GlassCard from './GlassCard';
 import { MOCK_CLIENTS } from '../constants';
 import { MoreHorizontal, Plus, X, Trash2, Check, Clock, Circle, DollarSign } from 'lucide-react';
-import { Language, Task, TaskContext, TaskStatus } from '../types';
+import { Language, Task, TaskContext, TaskStatus, TaskType } from '../types';
 import { getTranslation } from '../translations';
 
 interface FreelanceBoardProps {
@@ -23,7 +23,12 @@ const FreelanceBoard: React.FC<FreelanceBoardProps> = ({ lang, tasks, onSaveTask
     const [energy, setEnergy] = useState<1 | 2 | 3>(2);
     const [context, setContext] = useState<TaskContext>('freelance');
     const [status, setStatus] = useState<TaskStatus>('todo');
+    const [status, setStatus] = useState<TaskStatus>('todo');
     const [revenue, setRevenue] = useState<string>(''); // Handle as string for input
+
+    // Reading Fields
+    const [type, setType] = useState<TaskType>('standard');
+    const [totalPages, setTotalPages] = useState<string>('');
 
     const columns = [
         { id: 'todo', label: t.todo, color: 'bg-white/10' },
@@ -40,6 +45,8 @@ const FreelanceBoard: React.FC<FreelanceBoardProps> = ({ lang, tasks, onSaveTask
         setContext('freelance');
         setStatus('todo');
         setRevenue('');
+        setType('standard');
+        setTotalPages('');
         setIsModalOpen(true);
     };
 
@@ -50,6 +57,8 @@ const FreelanceBoard: React.FC<FreelanceBoardProps> = ({ lang, tasks, onSaveTask
         setContext(task.context);
         setStatus(task.status);
         setRevenue(task.revenue ? task.revenue.toString() : '');
+        setType(task.type || 'standard');
+        setTotalPages(task.totalPages ? task.totalPages.toString() : '');
         setIsModalOpen(true);
     };
 
@@ -71,7 +80,12 @@ const FreelanceBoard: React.FC<FreelanceBoardProps> = ({ lang, tasks, onSaveTask
             dueDate: editingTask?.dueDate || new Date().toISOString().split('T')[0],
             completedAt,
             tags: editingTask?.tags || [],
-            revenue: revenueNum
+            completedAt,
+            tags: editingTask?.tags || [],
+            revenue: revenueNum,
+            type: type,
+            totalPages: totalPages ? parseInt(totalPages) : undefined,
+            currentPage: editingTask?.currentPage // Preserve progress
         };
 
         onSaveTask(taskToSave);
@@ -218,6 +232,33 @@ const FreelanceBoard: React.FC<FreelanceBoardProps> = ({ lang, tasks, onSaveTask
                                             className="w-full bg-white/5 border border-white/10 rounded-xl p-3 pl-9 text-white placeholder-white/30 focus:outline-none focus:border-green-400 transition-colors font-mono"
                                         />
                                     </div>
+                                </div>
+
+                                {/* Reading Tracker Inputs */}
+                                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
+                                    <div className="flex gap-4 items-center mb-3">
+                                        <label className="text-sm text-white flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={type === 'reading'}
+                                                onChange={(e) => setType(e.target.checked ? 'reading' : 'standard')}
+                                                className="w-4 h-4 rounded border-white/20 bg-white/5 text-blue-500"
+                                            />
+                                            Is this a Reading Task?
+                                        </label>
+                                    </div>
+                                    {type === 'reading' && (
+                                        <div>
+                                            <label className="text-xs text-white/50 uppercase mb-2 block">Total Pages</label>
+                                            <input
+                                                type="number"
+                                                value={totalPages}
+                                                onChange={(e) => setTotalPages(e.target.value)}
+                                                placeholder="e.g. 300"
+                                                className="w-full bg-black/20 border border-white/10 rounded-xl p-3 text-white placeholder-white/30 focus:outline-none focus:border-blue-400 transition-colors"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="flex gap-3 mt-8 pt-4 border-t border-white/10">
