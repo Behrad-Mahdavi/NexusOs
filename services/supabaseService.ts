@@ -1,6 +1,14 @@
 import { supabase } from '../lib/supabase';
 import { Task, Course, Assignment, GraphData, Insight, Link, TaskContext, TaskStatus } from '../types';
 
+// --- Helper: Get Current User ---
+// این تابع کمکی تضمین می‌کند که همیشه آیدی کاربر را داریم
+const getCurrentUserId = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("User not authenticated");
+  return user.id;
+};
+
 // --- Tasks ---
 
 export const fetchTasks = async (): Promise<Task[]> => {
@@ -12,7 +20,6 @@ export const fetchTasks = async (): Promise<Task[]> => {
   if (error) throw error;
   if (!data) return [];
 
-  // Map DB columns to App types
   return data.map((t: any) => ({
     id: t.id,
     title: t.title,
@@ -21,9 +28,8 @@ export const fetchTasks = async (): Promise<Task[]> => {
     energyCost: t.energy_cost,
     dueDate: t.due_date ? t.due_date.split('T')[0] : '',
     completedAt: t.completed_at,
-    tags: [], // Tags can be added to DB later if needed
+    tags: [],
     revenue: t.revenue || 0,
-    // Reading Fields
     type: t.type || 'standard',
     totalPages: t.total_pages,
     currentPage: t.current_page
@@ -31,7 +37,10 @@ export const fetchTasks = async (): Promise<Task[]> => {
 };
 
 export const saveTask = async (task: Task) => {
+  const userId = await getCurrentUserId();
+  
   const payload = {
+    user_id: userId, // Explicitly set owner
     title: task.title,
     context: task.context,
     status: task.status,
@@ -39,24 +48,21 @@ export const saveTask = async (task: Task) => {
     due_date: task.dueDate ? new Date(task.dueDate).toISOString() : null,
     completed_at: task.completedAt ? new Date(task.completedAt).toISOString() : null,
     revenue: task.revenue,
-    // Reading Fields
     type: task.type || 'standard',
     total_pages: task.totalPages,
     current_page: task.currentPage
   };
 
   if (task.id.length > 30) {
-    // Assume long UUIDs are existing DB records, simple timestamp IDs are local/new
-    // However, we should handle upsert based on ID. 
-    // If ID is numeric timestamp (from old local code), let Supabase gen a new UUID.
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(task.id);
-
     if (isUUID) {
-      return await supabase.from('tasks').update(payload).eq('id', task.id).select().single();
+      // برای آپدیت نیازی به ارسال مجدد user_id نیست مگر اینکه بخواهیم مالکیت را عوض کنیم (که نمی‌خواهیم)
+      // اما برای اطمینان از اینکه فقط خود کاربر ادیت می‌کند، RLS جلوی دسترسی غیرمجاز را می‌گیرد
+      const { user_id, ...updatePayload } = payload; 
+      return await supabase.from('tasks').update(updatePayload).eq('id', task.id).select().single();
     }
   }
 
-  // Create new
   return await supabase.from('tasks').insert(payload).select().single();
 };
 
@@ -74,7 +80,7 @@ export const fetchCourses = async (): Promise<Course[]> => {
     name: c.name,
     code: c.code || '',
     professor: c.professor_name || '',
-    dayOfWeek: c.schedule ? c.schedule.day : 0, // Simplified mapping
+    dayOfWeek: c.schedule ? c.schedule.day : 0,
     startTime: c.schedule ? c.schedule.start : '00:00',
     endTime: c.schedule ? c.schedule.end : '00:00',
     color: c.color_theme || 'blue',
@@ -83,18 +89,22 @@ export const fetchCourses = async (): Promise<Course[]> => {
 };
 
 export const saveCourse = async (course: Course) => {
+  const userId = await getCurrentUserId();
+
   const payload = {
+    user_id: userId,
     name: course.name,
     professor_name: course.professor,
     color_theme: course.color,
-    schedule: { day: course.dayOfWeek, start: course.startTime, end: course.endTime }, // Store as JSONB
+    schedule: { day: course.dayOfWeek, start: course.startTime, end: course.endTime },
     code: course.code,
     location: course.location
   };
 
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(course.id);
   if (isUUID) {
-    return await supabase.from('courses').update(payload).eq('id', course.id).select().single();
+    const { user_id, ...updatePayload } = payload;
+    return await supabase.from('courses').update(updatePayload).eq('id', course.id).select().single();
   }
   return await supabase.from('courses').insert(payload).select().single();
 };
@@ -117,7 +127,15 @@ export const fetchAssignments = async (): Promise<Assignment[]> => {
 };
 
 export const saveAssignment = async (assign: Assignment) => {
+  const userId = await getCurrentUserId();
+
   const payload = {
+    // Note: Assignments are linked to Courses which are linked to Users.
+    // Ideally assignment table should also have user_id for easier RLS, 
+    // OR we rely on RLS checking the course ownership. 
+    // For safety in this prototype, I'm assuming you added user_id to assignments too based on previous steps.
+    // If not, remove this line, but best practice is to have it.
+    // user_id: userId, 
     course_id: assign.courseId,
     title: assign.title,
     type: assign.type,
@@ -163,8 +181,10 @@ export const fetchGraph = async (): Promise<GraphData> => {
 };
 
 export const saveNode = async (node: Insight, connectedIds: string[]) => {
-  // 1. Upsert Node
+  const userId = await getCurrentUserId();
+  
   const nodePayload = {
+    user_id: userId,
     label: node.label,
     group_id: node.group,
     val: node.val
@@ -174,25 +194,16 @@ export const saveNode = async (node: Insight, connectedIds: string[]) => {
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(node.id);
 
   if (isUUID) {
-    await supabase.from('nodes').update(nodePayload).eq('id', nodeId);
+    const { user_id, ...updatePayload } = nodePayload;
+    await supabase.from('nodes').update(updatePayload).eq('id', nodeId);
   } else {
     const { data } = await supabase.from('nodes').insert(nodePayload).select().single();
     if (data) nodeId = data.id;
   }
 
-  // 2. Manage Links (Simple strategy: delete all for this node and recreate)
-  // Find links where this node is source or target
-  // Note: RLS allows this.
-
-  // Deleting complex links via ID logic is harder without knowing Link IDs.
-  // For this implementation, we will fetch existing links, compare, and add/remove.
-  // A simpler approach for the prototype: 
-  // Just insert new links that don't exist.
-
-  // Let's implement a clean "Sync Links" manually in UI or just add new ones.
-  // For this specific func, let's just insert the new connections provided in connectedIds.
-
+  // Links handling (Simplified)
   const newLinks = connectedIds.map(targetId => ({
+    // user_id: userId, // Uncomment if links table has user_id
     source: nodeId,
     target: targetId
   }));
@@ -208,7 +219,7 @@ export const deleteNode = async (id: string) => {
   return await supabase.from('nodes').delete().eq('id', id);
 };
 
-// --- Focus Sessions ---
+// --- Focus Sessions (THE FIX) ---
 
 export interface FocusSession {
   id?: string;
@@ -216,10 +227,32 @@ export interface FocusSession {
   ended_at?: string;
   duration_minutes: number;
   completed: boolean;
+  user_id?: string; // Added for type safety
 }
 
 export const saveFocusSession = async (session: Omit<FocusSession, 'id'>) => {
-  return await supabase.from('focus_sessions').insert(session).select().single();
+  // 1. Get User ID Explicitly
+  const userId = await getCurrentUserId();
+
+  // 2. Prepare Payload with User ID
+  const payload = {
+    ...session,
+    user_id: userId
+  };
+
+  // 3. Insert
+  const { data, error } = await supabase
+    .from('focus_sessions')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Supabase Save Error:", error);
+    throw error;
+  }
+  
+  return data;
 };
 
 export const fetchFocusSessions = async (days: number = 30): Promise<FocusSession[]> => {
@@ -233,14 +266,17 @@ export const fetchFocusSessions = async (days: number = 30): Promise<FocusSessio
     .order('started_at', { ascending: false });
 
   if (error) throw error;
-  if (error) throw error;
   return data || [];
 };
 
 // --- Reading Tracker ---
 
 export const saveReadingSession = async (taskId: string, pagesRead: number) => {
+  // Reading sessions also need ownership if RLS is on
+  const userId = await getCurrentUserId();
+  
   return await supabase.from('reading_sessions').insert({
+    user_id: userId, // Add this column to DB if missing, or ensure default logic works
     task_id: taskId,
     pages_read: pagesRead
   });
