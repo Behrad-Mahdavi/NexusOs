@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'sonner';
+import { triggerHaptic } from '../utils/feedback';
 import GlassCard from './GlassCard';
 import { MOCK_CLIENTS } from '../constants';
 import { MoreHorizontal, Plus, X, Trash2, Check, Clock, Circle, DollarSign } from 'lucide-react';
@@ -75,6 +77,16 @@ const FreelanceBoard: React.FC<FreelanceBoardProps> = ({ lang, tasks, onSaveTask
         };
 
         onSaveTask(taskToSave);
+
+        triggerHaptic('success');
+        if (isCompleting) {
+            toast.success('Great Job!', { description: 'Energy consumption logged.' });
+        } else if (!editingTask) {
+            toast.success('Task added', { description: 'Ready to optimize your Load.' });
+        } else {
+            toast.success('Task updated');
+        }
+
         setIsModalOpen(false);
     };
 

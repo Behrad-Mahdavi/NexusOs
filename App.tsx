@@ -4,6 +4,8 @@ import { Globe, LogOut } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import * as api from './services/supabaseService';
 import { FocusSession } from './services/supabaseService';
+import { Toaster, toast } from 'sonner';
+import { triggerHaptic } from './utils/feedback';
 import Auth from './components/Auth';
 import AuroraBackground from './components/AuroraBackground';
 import Dashboard from './components/Dashboard';
@@ -112,8 +114,32 @@ const App: React.FC = () => {
   };
 
   const handleDeleteTask = async (id: string) => {
+    // Optimistic Delete
+    const taskToDelete = tasks.find(t => t.id === id);
     setTasks(prev => prev.filter(t => t.id !== id));
-    await api.deleteTask(id);
+
+    // Feedback
+    triggerHaptic('heavy');
+    toast('Task deleted', {
+      description: taskToDelete?.title,
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          if (taskToDelete) {
+            setTasks(prev => [...prev, taskToDelete]);
+            await api.saveTask(taskToDelete);
+            triggerHaptic('medium');
+          }
+        }
+      }
+    });
+
+    try {
+      await api.deleteTask(id);
+    } catch (e) {
+      console.error('Delete failed', e);
+      toast.error('Failed to delete task');
+    }
   };
 
   // Courses
@@ -181,6 +207,14 @@ const App: React.FC = () => {
 
   const handleSessionComplete = async () => {
     setSessionCount(prev => prev + 1);
+
+    // Feedback
+    triggerHaptic('success');
+    toast.success('Session Completed! Log your mood.', {
+      duration: 5000,
+      icon: '⏳'
+    });
+
     // Save session to database
     const newSession: Omit<FocusSession, 'id'> = {
       started_at: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
@@ -194,12 +228,20 @@ const App: React.FC = () => {
       setFocusSessions(updated);
     } catch (e) {
       console.error('Error saving focus session:', e);
+      toast.error('Failed to save session');
     }
   };
 
   const handleReadingProgress = async (taskId: string, newPage: number, pagesRead: number) => {
     // 1. Update Task (Optimistic)
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, currentPage: newPage } : t));
+
+    // Feedback
+    triggerHaptic('medium');
+    toast.success('Progress logged', {
+      description: 'You are on track for your deadline',
+      icon: '✅'
+    });
 
     // 2. Update DB
     const task = tasks.find(t => t.id === taskId);
@@ -289,6 +331,7 @@ const App: React.FC = () => {
 
   return (
     <div className={`relative w-screen h-dvh overflow-hidden text-white selection:bg-pink-500/30 ${language === 'fa' ? 'font-persian' : 'font-sans'}`}>
+      <Toaster position="top-center" theme="dark" richColors />
       <AuroraBackground />
 
       {!session ? (

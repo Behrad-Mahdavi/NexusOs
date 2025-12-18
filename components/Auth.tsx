@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
+import { triggerHaptic } from '../utils/feedback';
 import GlassCard from './GlassCard';
 import { Sparkles, ArrowRight, Loader } from 'lucide-react';
 
@@ -25,12 +27,21 @@ const Auth: React.FC = () => {
                     }
                 });
                 if (error) throw error;
-                alert('Check your email for the confirmation link!');
+                triggerHaptic('success');
+                toast.success('Welcome! Check email for confirmation.');
             } else {
                 const { error } = await supabase.auth.signInWithPassword({ email, password });
                 if (error) throw error;
+                triggerHaptic('success');
+                toast.success('Welcome back!', {
+                    description: 'Your productivity system is live.'
+                });
             }
         } catch (err: any) {
+            triggerHaptic('error');
+            toast.error('Authentication Failed', {
+                description: err.message
+            });
             setError(err.message);
         } finally {
             setLoading(false);
