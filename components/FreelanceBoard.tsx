@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import { triggerHaptic } from '../utils/feedback';
-import { toast } from 'sonner';
-import { triggerHaptic } from '../utils/feedback';
 import GlassCard from './GlassCard';
 import { MOCK_CLIENTS } from '../constants';
 import { MoreHorizontal, Plus, X, Trash2, Check, Clock, Circle, DollarSign } from 'lucide-react';
